@@ -1,0 +1,53 @@
+services:
+
+  # note: we do not run prod service with docker-compose, we use it just for building
+  # This is because we use dokku in to run production, not docker compose
+  prod:
+    image: project-prod
+    init: true
+    profiles:
+      - prod
+    build:
+      context: .
+      target: prod-image
+      # This should speed up the build in CI, where we have a cold cache
+      cache_from: 
+        - ghcr.io/opensafely/base-docker
+        - ghcr.io/opensafely/project
+      args:
+        # this makes the image work for later cache_from: usage
+        - BUILDKIT_INLINE_CACHE=1
+        # these should be based in the environment to docker-compose call
+        - BUILD_DATE
+        - GITREF
+
+  # main development service
+  dev:
+    image: project-dev
+    container_name: project-dev
+    user: ${USERID:-1000}
+    init: true
+    build:
+      context: .
+      target: dev-image
+      args:
+        - USERID=${USERID:-1000}
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+
+  # test runner
+  test:
+    image: project-dev
+    user: ${USERID:-1000}
+    profiles:
+      - test
+    init: true
+    command: /app/entrypoints/test.sh
+    env_file:
+      - .test.env
+    volumes:
+      - .:/app
